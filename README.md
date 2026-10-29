@@ -33,8 +33,10 @@ Then open the local URL Streamlit prints (usually http://localhost:8501).
 
 ## What it does
 
-- **Slicers** (sidebar): Year, then Month, then Source
-  (All / Splitwise / Personal (PDF)), plus Total / Rent budget inputs.
+- **Slicers** (a strip at the top of the dashboard, in the main page —
+  no sidebar): Year, then Month, then Source
+  (All / Splitwise / Personal (PDF)), plus Total / Rent budget inputs,
+  then the visuals right below in the same page.
 - **Spend by Category** — pie with a pie-only colour palette, my share only.
 - **Monthly Trend** — my share per month, last 12 months ending at the
   selected month. All bars are one yellow; the selected month has a white

@@ -97,11 +97,15 @@ st.markdown(
       background: linear-gradient(90deg, transparent, #4cc9f0, #90e0ef, transparent);
       box-shadow: 0 0 18px 4px rgba(76, 201, 240, 0.55);
     }
-    section[data-testid="stSidebar"] { background: rgba(0, 18, 51, 0.92) !important; }
+    section[data-testid="stSidebar"] { display: none; }
     div[data-testid="stMetric"] {
       background: rgba(0, 40, 85, 0.55); border: 1px solid rgba(76, 201, 240, 0.30);
-      border-radius: 14px; padding: 12px;
+      border-radius: 14px; padding: 12px; min-width: 0;
     }
+    div[data-testid="stMetricValue"] {
+      font-size: 1.35rem; line-height: 1.25; white-space: normal; word-break: break-word;
+    }
+    div[data-testid="stMetricLabel"] { font-size: 0.85rem; white-space: normal; }
     </style>
     """,
     unsafe_allow_html=True,
@@ -144,12 +148,16 @@ st.caption(
 )
 st.caption("🌅 Where the navy ocean meets the black sky — deep blue at the top, fading to black below.")
 
-# ---------- Slicers (sidebar = Power BI slicer pane) ----------
-with st.sidebar:
-    st.header("Slicers")
+# ---------- Slicers: one strip at the top of the dashboard, in the main page ----------
+# No sidebar: title on top, then this slicer strip, then the visuals below,
+# all in the same page.
+st.subheader("Slicers")
+col_y, col_m, col_s, col_tb, col_rb, col_clear = st.columns([1, 1, 1, 1, 1, 0.9])
+with col_y:
     year = st.selectbox("Year", ["All years"] + all_years,
                         index=(all_years.index(st.session_state.year) + 1) if st.session_state.year in all_years else 0,
                         key=f"year_box_{st.session_state.nav_counter}")
+with col_m:
     year_val = "ALL" if year == "All years" else year
     months_in_year = sorted(set(m[5:] for m in all_months if year_val == "ALL" or m.startswith(year_val)))
     month_labels = ["All months"] + [MONTH_NAMES[int(m) - 1] for m in months_in_year]
@@ -157,6 +165,7 @@ with st.sidebar:
     if st.session_state.month in months_in_year:
         _mi = month_labels.index(MONTH_NAMES[int(st.session_state.month) - 1])
     month_choice = st.selectbox("Month", month_labels, index=_mi, key=f"month_box_{st.session_state.nav_counter}")
+with col_s:
     month_val = "ALL" if month_choice == "All months" else months_in_year[month_labels.index(month_choice) - 1]
     # Keep session state in sync with the slicers
     if year_val != "ALL":
@@ -164,14 +173,17 @@ with st.sidebar:
     if month_val != "ALL":
         st.session_state.month = month_val
     source = st.selectbox("Source", ["All sources", "Splitwise", "Personal (PDF)"], key=f"source_{st.session_state.filter_counter}")
-    st.divider()
-    st.header("Budget")
+with col_tb:
     total_budget = st.number_input("Total monthly budget", value=1000, step=50, key="total_budget")
+with col_rb:
     rent_budget = st.number_input("Rent — fixed, outside Splitwise", value=600, step=50, key="rent_budget")
-    st.caption(f"Other categories share {fmt(total_budget - rent_budget)}.")
+with col_clear:
+    st.write("")
     if st.button("Clear filters", type="primary"):
         clear_filters()
         st.rerun()
+st.caption(f"Other categories share {fmt(total_budget - rent_budget)} of the {fmt(total_budget)} total.")
+st.divider()
 
 # ---------- Filtering ----------
 def base_df():
@@ -223,10 +235,12 @@ top_cat = None
 if len(full):
     by_cat_all = full.groupby("cat")["myOwed"].sum().sort_values(ascending=False)
     top_cat = by_cat_all.index[0] if len(by_cat_all) else None
-k1, k2, k3, k4, k5, k6 = st.columns(6)
+# Two rows of three, so each card is wide enough for a full 4-digit amount.
+k1, k2, k3 = st.columns(3)
 k1.metric("My share", fmt(my_total))
 k2.metric("Fixed Rent", fmt(fixed_rent))
 k3.metric("View + Fixed Rent", fmt(my_total + fixed_rent))
+k4, k5, k6 = st.columns(3)
 k4.metric("Expenses", len(full))
 k5.metric("Avg my share", fmt(my_total / len(full)) if len(full) else "$0.00")
 k6.metric("Top category", top_cat or "—")
@@ -374,7 +388,8 @@ if len(avg_df):
     # Fun emojis + quotes where this period is over the average
     over = [r for r in avg_rows if r["This period"] > r["6-mo avg"] and r["6-mo avg"] > 0]
     if over:
-        st.markdown("### 💬 Over the average — the ocean noticed")
+        st.markdown("### 💬 Over the average")
+        st.caption("These categories cost more in this period than their average over the previous 6 months. The emoji and quote are just a fun flag for that — the numbers are what matters.")
         cols = st.columns(min(3, len(over)))
         for col, r in zip(cols, over[:3]):
             emoji, quote = quote_for(r["cat"])
@@ -385,6 +400,7 @@ else:
 
 # ---------- Time Intelligence ----------
 st.subheader("Time Intelligence")
+st.caption("How much you spent over different lengths of time, for the month shown. This month = from the 1st of the selected month. This quarter = from the 1st of the current 3-month quarter. This year = from 1 January. Same month last year = the same month one year ago. The names in brackets (TOTALMTD, TOTALQTD, TOTALYTD, SAMEPERIODLASTYEAR) are the Power BI / DAX names for the same ideas. “vs last year” and “vs last month” are the % change compared with those months.")
 
 def sum_my(month_str, cat=None, person=None):
     d = expenses[expenses["month"] == month_str]
@@ -408,13 +424,15 @@ idx = all_months.index(as_of) if as_of in all_months else len(all_months) - 1
 prev_my = sum_my(all_months[idx - 1], st.session_state.cat_filter, st.session_state.person_filter) if idx > 0 else 0.0
 yoy = (mtd - py) / py * 100 if py else 0.0
 mom = (mtd - prev_my) / prev_my * 100 if prev_my else 0.0
-t1, t2, t3, t4, t5, t6 = st.columns(6)
-t1.metric("MTD · TOTALMTD", fmt(mtd))
-t2.metric("QTD · TOTALQTD", fmt(qtd))
-t3.metric("YTD · TOTALYTD", fmt(ytd))
-t4.metric("Same month PY", fmt(py))
-t5.metric("YoY", f"{yoy:+.1f}%")
-t6.metric("MoM", f"{mom:+.1f}%")
+# Two rows of three, so each card is wide enough for a full 4-digit amount.
+t1, t2, t3 = st.columns(3)
+t1.metric("This month (TOTALMTD)", fmt(mtd))
+t2.metric("This quarter (TOTALQTD)", fmt(qtd))
+t3.metric("This year (TOTALYTD)", fmt(ytd))
+t4, t5, t6 = st.columns(3)
+t4.metric("Same month last year", fmt(py))
+t5.metric("vs last year (YoY)", f"{yoy:+.1f}%")
+t6.metric("vs last month (MoM)", f"{mom:+.1f}%")
 
 # ---------- Budget vs Actual ----------
 st.subheader("Budget vs Actual")
@@ -469,7 +487,8 @@ if len(budget_df):
     st.caption("White tick = budget · Red bar = over budget · Yellow bar = on / under budget")
     over_budget = [r for r in rows if r["Variance"] > 0]
     if over_budget:
-        st.markdown("### 💬 Over budget — the waves are talking")
+        st.markdown("### 💬 Over budget")
+        st.caption("These categories spent more than the budget set for them this month. The emoji and quote are just a fun flag for that — the Actual vs Budget numbers above the quote are what matters.")
         cols = st.columns(min(3, len(over_budget)))
         for col, r in zip(cols, over_budget[:3]):
             emoji, quote = quote_for(r["cat"] if r["cat"] != "Rent (fixed)" else "Rent")
