@@ -138,8 +138,12 @@ if "_chart_sig" not in st.session_state:
     st.session_state._chart_sig = {}
 if "cat_origin" not in st.session_state:
     st.session_state.cat_origin = None
+if "cat_origin_chart" not in st.session_state:
+    st.session_state.cat_origin_chart = None
 if "person_origin" not in st.session_state:
     st.session_state.person_origin = None
+if "trend_origin" not in st.session_state:
+    st.session_state.trend_origin = None
 
 # ---------- Chart clicks (the interactivity): clicking a chart cross-filters ----------
 # Streamlit returns the clicked points in the chart's state when
@@ -184,11 +188,13 @@ def _click_cat(key, state, names):
         if name is not None and name != st.session_state.cat_filter:
             st.session_state.cat_filter = name
             st.session_state.cat_origin = "chart"
+            st.session_state.cat_origin_chart = key
             st.rerun()
-    elif prev is not None and st.session_state.cat_origin == "chart":
+    elif prev is not None and st.session_state.cat_origin == "chart" and st.session_state.cat_origin_chart == key:
         st.session_state._chart_sig[key] = None
         st.session_state.cat_filter = None
         st.session_state.cat_origin = None
+        st.session_state.cat_origin_chart = None
         st.rerun()
 
 def _click_person(key, state, names):
@@ -214,8 +220,22 @@ def _click_month(key, state, months, labels):
     points = _chart_points(state)
     sig = _chart_sig(points)
     prev = st.session_state._chart_sig.get(key)
-    if sig is None or sig == prev:
+    if sig is None:
+        # Clicking the same bar again deselects it: go back to the month
+        # that was selected before the trend click (the original state).
+        if prev is not None and st.session_state.trend_origin is not None:
+            origin = st.session_state.trend_origin
+            st.session_state._chart_sig[key] = None
+            st.session_state.trend_origin = None
+            if origin != sel:
+                go_to_month(origin)
+                st.rerun()
         return
+    if sig == prev:
+        return
+    # First trend click in this selection: remember the original month.
+    if prev is None:
+        st.session_state.trend_origin = sel
     st.session_state._chart_sig[key] = sig
     p = points[0]
     month = None
@@ -242,7 +262,9 @@ def clear_filters():
     st.session_state.cat_filter = None
     st.session_state.person_filter = None
     st.session_state.cat_origin = None
+    st.session_state.cat_origin_chart = None
     st.session_state.person_origin = None
+    st.session_state.trend_origin = None
     st.session_state._chart_sig = {}
     st.session_state.filter_counter += 1
     go_to_month(latest_month)
@@ -429,9 +451,16 @@ with col_top:
         fig = px.bar(plotted_top, x="myOwed", y="desc", orientation="h",
                      color_discrete_sequence=["#F472B6"], text="myOwed")
         fig.update_traces(texttemplate="$%{text:,.2f}", textposition="outside",
-                          textfont=dict(color="white", size=14))
+                          textfont=dict(color="white", size=14), cliponaxis=False)
         style_fig(fig, 340)
-        fig.update_layout(xaxis_title=None, yaxis_title=None, showlegend=False)
+        # Headroom for the amount labels: the longest (highest) bars had
+        # their $ labels cut off at the right edge. Extend the axis well
+        # past the longest bar and widen the right margin so every label
+        # fits inside the chart.
+        _top_max = float(plotted_top["myOwed"].max()) if len(plotted_top) else 0.0
+        fig.update_layout(xaxis_title=None, yaxis_title=None, showlegend=False,
+                          xaxis_range=[0, _top_max * 1.35],
+                          margin=dict(l=10, r=90, t=30, b=10))
         fig.update_yaxes(tickfont=dict(size=14, color="white"))
         top_state = st.plotly_chart(fig, width="stretch", key="top_chart", on_select="rerun")
         # Resolve the clicked expense by its description, then filter by its category.
@@ -444,7 +473,15 @@ with col_top:
             if len(_row) and _row.iloc[0]["cat"] != st.session_state.cat_filter:
                 st.session_state.cat_filter = _row.iloc[0]["cat"]
                 st.session_state.cat_origin = "chart"
+                st.session_state.cat_origin_chart = "top_chart"
                 st.rerun()
+        elif not _top_points and st.session_state._chart_sig.get("top_chart") is not None and st.session_state.cat_origin == "chart" and st.session_state.cat_origin_chart == "top_chart":
+            # Clicking the same Top Expense bar again: back to the original state.
+            st.session_state._chart_sig["top_chart"] = None
+            st.session_state.cat_filter = None
+            st.session_state.cat_origin = None
+            st.session_state.cat_origin_chart = None
+            st.rerun()
     else:
         st.write("No expenses in this filter.")
 with col_settle:
@@ -615,11 +652,13 @@ if len(budget_df):
         if _b_name is not None and _b_name != st.session_state.cat_filter:
             st.session_state.cat_filter = _b_name
             st.session_state.cat_origin = "chart"
+            st.session_state.cat_origin_chart = "budget_chart"
             st.rerun()
-    elif not _b_points and st.session_state._chart_sig.get("budget_chart") is not None and st.session_state.cat_origin == "chart":
+    elif not _b_points and st.session_state._chart_sig.get("budget_chart") is not None and st.session_state.cat_origin == "chart" and st.session_state.cat_origin_chart == "budget_chart":
         st.session_state._chart_sig["budget_chart"] = None
         st.session_state.cat_filter = None
         st.session_state.cat_origin = None
+        st.session_state.cat_origin_chart = None
         st.rerun()
     st.caption("White tick = budget · Red bar = over budget · Yellow bar = on / under budget")
     over_budget = [r for r in rows if r["Variance"] > 0]
