@@ -70,6 +70,19 @@ all_months = sorted(expenses["month"].unique().tolist())
 all_years = sorted(set(m[:4] for m in all_months))
 latest_month = all_months[-1]
 
+def _by_person(df, person):
+    """Filter rows by person, preserving columns on empty frames.
+
+    On pandas 3, ``Series.apply`` on an empty Series yields an
+    object-dtype mask, and boolean-indexing with it drops every column,
+    so a later ``df["myOwed"]`` raises ``KeyError: 'myOwed'``. Guarding
+    empty frames and coercing the mask to bool avoids that crash.
+    """
+    if not person or len(df) == 0:
+        return df
+    mask = df["persons"].apply(lambda ps: person in ps).astype(bool)
+    return df[mask]
+
 # ---------- Page + ocean/sky background (set in Python, no separate CSS file) ----------
 st.set_page_config(page_title="Finance Tracker", layout="wide")
 st.markdown(
@@ -105,6 +118,8 @@ if "cat_filter" not in st.session_state:
     st.session_state.cat_filter = None
 if "person_filter" not in st.session_state:
     st.session_state.person_filter = None
+if "filter_counter" not in st.session_state:
+    st.session_state.filter_counter = 0
 
 def go_to_month(m):
     st.session_state.year = m[:4]
@@ -112,9 +127,13 @@ def go_to_month(m):
     st.session_state.nav_counter += 1
 
 def clear_filters():
+    # Never assign a widget's session-state key after it is instantiated
+    # (that raises StreamlitWidgetAlreadyInstantiatedError). Instead bump
+    # filter_counter so the Source / category / person widgets are
+    # recreated with their default "All ..." values on the rerun.
     st.session_state.cat_filter = None
     st.session_state.person_filter = None
-    st.session_state.source = "All sources"
+    st.session_state.filter_counter += 1
     go_to_month(latest_month)
 
 # ---------- Header ----------
@@ -144,7 +163,7 @@ with st.sidebar:
         st.session_state.year = year_val
     if month_val != "ALL":
         st.session_state.month = month_val
-    source = st.selectbox("Source", ["All sources", "Splitwise", "Personal (PDF)"], key="source")
+    source = st.selectbox("Source", ["All sources", "Splitwise", "Personal (PDF)"], key=f"source_{st.session_state.filter_counter}")
     st.divider()
     st.header("Budget")
     total_budget = st.number_input("Total monthly budget", value=1000, step=50, key="total_budget")
@@ -168,9 +187,7 @@ def base_df():
     return df
 
 def person_df(df):
-    if st.session_state.person_filter:
-        return df[df["persons"].apply(lambda ps: st.session_state.person_filter in ps)]
-    return df
+    return _by_person(df, st.session_state.person_filter)
 
 def full_df():
     df = person_df(base_df())
@@ -236,7 +253,7 @@ with col_pie:
         st.caption(f"Total {fmt(by_cat.sum())}")
         # Category filter as a selectbox (Python-native cross-filter, plus the pie legend)
         cat_choice = st.selectbox("Filter by category", ["All categories"] + by_cat.index.tolist(),
-                                  index=0, key="cat_select")
+                                  index=0, key=f"cat_select_{st.session_state.filter_counter}")
         if cat_choice != "All categories":
             st.session_state.cat_filter = cat_choice
         elif st.session_state.cat_filter and st.session_state.cat_filter not in by_cat.index.tolist():
@@ -253,8 +270,7 @@ with col_trend:
         d = expenses[expenses["month"] == m]
         if st.session_state.cat_filter:
             d = d[d["cat"] == st.session_state.cat_filter]
-        if st.session_state.person_filter:
-            d = d[d["persons"].apply(lambda ps: st.session_state.person_filter in ps)]
+        d = _by_person(d, st.session_state.person_filter)
         if source == "Splitwise":
             d = d[d["source"] == "splitwise"]
         elif source == "Personal (PDF)":
@@ -315,7 +331,7 @@ with col_settle:
         fig.update_yaxes(tickfont=dict(size=14, color="white"))
         st.plotly_chart(fig, width="stretch", key="settle_chart")
         st.caption("🟢 Owe = they owe you · 🔴 Pay = you owe them · ⚪ Pal = shared, no current balance")
-        person_choice = st.selectbox("Filter by person", ["All people"] + balances["name"].tolist(), key="person_select")
+        person_choice = st.selectbox("Filter by person", ["All people"] + balances["name"].tolist(), key=f"person_select_{st.session_state.filter_counter}")
         if person_choice != "All people":
             st.session_state.person_filter = person_choice
     else:
@@ -330,8 +346,7 @@ if sel:
     prior = all_months[max(0, idx - 6):idx]
     for m in prior:
         d = expenses[expenses["month"] == m]
-        if st.session_state.person_filter:
-            d = d[d["persons"].apply(lambda ps: st.session_state.person_filter in ps)]
+        d = _by_person(d, st.session_state.person_filter)
         if source == "Splitwise":
             d = d[d["source"] == "splitwise"]
         elif source == "Personal (PDF)":
@@ -375,8 +390,7 @@ def sum_my(month_str, cat=None, person=None):
     d = expenses[expenses["month"] == month_str]
     if cat:
         d = d[d["cat"] == cat]
-    if person:
-        d = d[d["persons"].apply(lambda ps: person in ps)]
+    d = _by_person(d, person)
     if source == "Splitwise":
         d = d[d["source"] == "splitwise"]
     elif source == "Personal (PDF)":
