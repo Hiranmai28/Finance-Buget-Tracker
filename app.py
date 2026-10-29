@@ -124,6 +124,100 @@ if "person_filter" not in st.session_state:
     st.session_state.person_filter = None
 if "filter_counter" not in st.session_state:
     st.session_state.filter_counter = 0
+if "_chart_sig" not in st.session_state:
+    st.session_state._chart_sig = {}
+if "cat_origin" not in st.session_state:
+    st.session_state.cat_origin = None
+if "person_origin" not in st.session_state:
+    st.session_state.person_origin = None
+
+# ---------- Chart clicks (the interactivity): clicking a chart cross-filters ----------
+# Streamlit returns the clicked points in the chart's state when
+# on_select="rerun". _chart_sig remembers the last click we already acted
+# on, so the same click is never applied twice (which would loop reruns).
+def _chart_points(state):
+    if state is None:
+        return []
+    sel = getattr(state, "selection", None)
+    if sel is None and isinstance(state, dict):
+        sel = state.get("selection")
+    if isinstance(sel, dict):
+        return sel.get("points") or []
+    return []
+
+def _chart_sig(points):
+    if not points:
+        return None
+    p = points[0]
+    return (str(p.get("x")), str(p.get("label")), str(p.get("y")),
+            str(p.get("point_index")), str(p.get("curve_number")))
+
+def _point_name(point, names):
+    for key in ("label", "y", "x"):
+        v = point.get(key)
+        if v in names:
+            return v
+    idx = point.get("point_index")
+    if isinstance(idx, int) and 0 <= idx < len(names):
+        return names[idx]
+    return None
+
+def _click_cat(key, state, names):
+    points = _chart_points(state)
+    sig = _chart_sig(points)
+    prev = st.session_state._chart_sig.get(key)
+    if sig is not None:
+        if sig == prev:
+            return
+        st.session_state._chart_sig[key] = sig
+        name = _point_name(points[0], names)
+        if name is not None and name != st.session_state.cat_filter:
+            st.session_state.cat_filter = name
+            st.session_state.cat_origin = "chart"
+            st.rerun()
+    elif prev is not None and st.session_state.cat_origin == "chart":
+        st.session_state._chart_sig[key] = None
+        st.session_state.cat_filter = None
+        st.session_state.cat_origin = None
+        st.rerun()
+
+def _click_person(key, state, names):
+    points = _chart_points(state)
+    sig = _chart_sig(points)
+    prev = st.session_state._chart_sig.get(key)
+    if sig is not None:
+        if sig == prev:
+            return
+        st.session_state._chart_sig[key] = sig
+        name = _point_name(points[0], names)
+        if name is not None and name != st.session_state.person_filter:
+            st.session_state.person_filter = name
+            st.session_state.person_origin = "chart"
+            st.rerun()
+    elif prev is not None and st.session_state.person_origin == "chart":
+        st.session_state._chart_sig[key] = None
+        st.session_state.person_filter = None
+        st.session_state.person_origin = None
+        st.rerun()
+
+def _click_month(key, state, months, labels):
+    points = _chart_points(state)
+    sig = _chart_sig(points)
+    prev = st.session_state._chart_sig.get(key)
+    if sig is None or sig == prev:
+        return
+    st.session_state._chart_sig[key] = sig
+    p = points[0]
+    month = None
+    if p.get("x") in labels:
+        month = months[labels.index(p["x"])]
+    else:
+        idx = p.get("point_index")
+        if isinstance(idx, int) and 0 <= idx < len(months):
+            month = months[idx]
+    if month is not None and month != sel:
+        go_to_month(month)
+        st.rerun()
 
 def go_to_month(m):
     st.session_state.year = m[:4]
@@ -137,6 +231,9 @@ def clear_filters():
     # recreated with their default "All ..." values on the rerun.
     st.session_state.cat_filter = None
     st.session_state.person_filter = None
+    st.session_state.cat_origin = None
+    st.session_state.person_origin = None
+    st.session_state._chart_sig = {}
     st.session_state.filter_counter += 1
     go_to_month(latest_month)
 
@@ -147,6 +244,7 @@ st.caption(
     if IS_SAMPLE else f"Splitwise · Snapshot {DATA.get('snapshot', '')} · My share only"
 )
 st.caption("🌅 Where the navy ocean meets the black sky — deep blue at the top, fading to black below.")
+st.caption("Interactive: click a pie slice, a month bar, a category bar, a top expense, a Settle Up bar, or a Budget bar to filter every other visual, the numbers, and the slicers to that choice. Click the same item again, or Clear filters, to clear it.")
 
 # ---------- Slicers: one strip at the top of the dashboard, in the main page ----------
 # No sidebar: title on top, then this slicer strip, then the visuals below,
@@ -263,13 +361,16 @@ with col_pie:
                      hole=0.25)
         fig.update_traces(textinfo="percent", textfont_size=14, marker=dict(line=dict(color="black", width=1)))
         style_fig(fig, 340)
-        st.plotly_chart(fig, width="stretch", key="pie_chart")
+        st.caption("Click a slice to filter everything else to that category. Click it again to clear.")
+        pie_state = st.plotly_chart(fig, width="stretch", key="pie_chart", on_select="rerun")
+        _click_cat("pie_chart", pie_state, by_cat.index.tolist())
         st.caption(f"Total {fmt(by_cat.sum())}")
         # Category filter as a selectbox (Python-native cross-filter, plus the pie legend)
         cat_choice = st.selectbox("Filter by category", ["All categories"] + by_cat.index.tolist(),
                                   index=0, key=f"cat_select_{st.session_state.filter_counter}")
         if cat_choice != "All categories":
             st.session_state.cat_filter = cat_choice
+            st.session_state.cat_origin = "selectbox"
         elif st.session_state.cat_filter and st.session_state.cat_filter not in by_cat.index.tolist():
             st.session_state.cat_filter = None
     else:
@@ -302,7 +403,9 @@ with col_trend:
         fig.update_layout(xaxis_title=None, yaxis_title="My share", showlegend=False)
         fig.update_xaxes(tickfont=dict(size=14, color="white"))
         fig.update_yaxes(tickfont=dict(size=14, color="white"))
-        st.plotly_chart(fig, width="stretch", key="trend_chart")
+        st.caption("Click a month bar to jump to that month.")
+        trend_state = st.plotly_chart(fig, width="stretch", key="trend_chart", on_select="rerun")
+        _click_month("trend_chart", trend_state, trend["month"].tolist(), trend["label"].tolist())
         st.caption(f"{trend.iloc[0]['label']} – {trend.iloc[-1]['label']} · {len(trend)} months")
     b1, b2, b3, b4 = st.columns(4)
     if b1.button("Earliest"):
@@ -320,14 +423,27 @@ with col_top:
     st.subheader("Top Expenses")
     top = full.sort_values("myOwed", ascending=False).head(8)
     if len(top):
-        fig = px.bar(top.sort_values("myOwed"), x="myOwed", y="desc", orientation="h",
+        plotted_top = top.sort_values("myOwed")
+        fig = px.bar(plotted_top, x="myOwed", y="desc", orientation="h",
                      color_discrete_sequence=["#F472B6"], text="myOwed")
         fig.update_traces(texttemplate="$%{text:,.2f}", textposition="outside",
                           textfont=dict(color="white", size=14))
         style_fig(fig, 340)
         fig.update_layout(xaxis_title=None, yaxis_title=None, showlegend=False)
         fig.update_yaxes(tickfont=dict(size=14, color="white"))
-        st.plotly_chart(fig, width="stretch", key="top_chart")
+        st.caption("Click a bar to filter everything else to that expense's category.")
+        top_state = st.plotly_chart(fig, width="stretch", key="top_chart", on_select="rerun")
+        # Resolve the clicked expense by its description, then filter by its category.
+        _top_points = _chart_points(top_state)
+        _top_sig = _chart_sig(_top_points)
+        if _top_points and _top_sig != st.session_state._chart_sig.get("top_chart"):
+            st.session_state._chart_sig["top_chart"] = _top_sig
+            _desc = _top_points[0].get("y")
+            _row = plotted_top[plotted_top["desc"] == _desc]
+            if len(_row) and _row.iloc[0]["cat"] != st.session_state.cat_filter:
+                st.session_state.cat_filter = _row.iloc[0]["cat"]
+                st.session_state.cat_origin = "chart"
+                st.rerun()
     else:
         st.write("No expenses in this filter.")
 with col_settle:
@@ -343,11 +459,14 @@ with col_settle:
         style_fig(fig, 340)
         fig.update_layout(xaxis_title=None, yaxis_title=None, showlegend=False)
         fig.update_yaxes(tickfont=dict(size=14, color="white"))
-        st.plotly_chart(fig, width="stretch", key="settle_chart")
+        st.caption("Click a bar to filter everything else to that person. Click it again to clear.")
+        settle_state = st.plotly_chart(fig, width="stretch", key="settle_chart", on_select="rerun")
+        _click_person("settle_chart", settle_state, balances["name"].tolist())
         st.caption("🟢 Owe = they owe you · 🔴 Pay = you owe them · ⚪ Pal = shared, no current balance")
         person_choice = st.selectbox("Filter by person", ["All people"] + balances["name"].tolist(), key=f"person_select_{st.session_state.filter_counter}")
         if person_choice != "All people":
             st.session_state.person_filter = person_choice
+            st.session_state.person_origin = "selectbox"
     else:
         st.write("No balances.")
 
@@ -384,7 +503,9 @@ if len(avg_df):
     fig.update_layout(barmode="group", legend=dict(font=dict(size=14, color="white")))
     fig.update_xaxes(tickfont=dict(size=14, color="white"))
     fig.update_yaxes(tickfont=dict(size=14, color="white"))
-    st.plotly_chart(fig, width="stretch", key="avg_chart")
+    st.caption("Click a category bar to filter everything else to that category. Click it again to clear.")
+    avg_state = st.plotly_chart(fig, width="stretch", key="avg_chart", on_select="rerun")
+    _click_cat("avg_chart", avg_state, avg_df["cat"].tolist())
     # Fun emojis + quotes where this period is over the average
     over = [r for r in avg_rows if r["This period"] > r["6-mo avg"] and r["6-mo avg"] > 0]
     if over:
@@ -483,7 +604,24 @@ if len(budget_df):
     fig.update_layout(showlegend=False, xaxis_title=None, yaxis_title=None, yaxis=dict(autorange="reversed"))
     fig.update_yaxes(tickfont=dict(size=15, color="white"))
     fig.update_xaxes(tickfont=dict(size=14, color="white"))
-    st.plotly_chart(fig, width="stretch", key="budget_chart")
+    st.caption("Click a bar to filter everything else to that category. Click it again to clear.")
+    budget_state = st.plotly_chart(fig, width="stretch", key="budget_chart", on_select="rerun")
+    _b_points = _chart_points(budget_state)
+    _b_sig = _chart_sig(_b_points)
+    if _b_points and _b_sig != st.session_state._chart_sig.get("budget_chart"):
+        st.session_state._chart_sig["budget_chart"] = _b_sig
+        _b_name = _point_name(_b_points[0], budget_df["cat"].tolist())
+        if _b_name == "Rent (fixed)":
+            _b_name = "Rent"
+        if _b_name is not None and _b_name != st.session_state.cat_filter:
+            st.session_state.cat_filter = _b_name
+            st.session_state.cat_origin = "chart"
+            st.rerun()
+    elif not _b_points and st.session_state._chart_sig.get("budget_chart") is not None and st.session_state.cat_origin == "chart":
+        st.session_state._chart_sig["budget_chart"] = None
+        st.session_state.cat_filter = None
+        st.session_state.cat_origin = None
+        st.rerun()
     st.caption("White tick = budget · Red bar = over budget · Yellow bar = on / under budget")
     over_budget = [r for r in rows if r["Variance"] > 0]
     if over_budget:

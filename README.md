@@ -37,6 +37,10 @@ Then open the local URL Streamlit prints (usually http://localhost:8501).
   no sidebar): Year, then Month, then Source
   (All / Splitwise / Personal (PDF)), plus Total / Rent budget inputs,
   then the visuals right below in the same page.
+- **Interactive, cross-filtering charts** — click a pie slice, a month
+  bar, a category bar, a top expense, a Settle Up bar, or a Budget bar
+  to filter every other visual, the numbers, and the slicers to that
+  choice. Click the same item again, or Clear filters, to clear it.
 - **Spend by Category** — pie with a pie-only colour palette, my share only.
 - **Monthly Trend** — my share per month, last 12 months ending at the
   selected month. All bars are one yellow; the selected month has a white
