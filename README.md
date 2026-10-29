@@ -9,7 +9,11 @@ generated for this portfolio demo). It is not real spending. The private
 version loads the author's real Splitwise data from a local `data.json`
 that is git-ignored and is not committed here.
 
+This is how the dashboard looks like: 
+
 ![Budget Tracker demo](preview.png)
+
+(its fun right!)
 
 ## Run it
 
