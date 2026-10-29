@@ -9,7 +9,7 @@ generated for this portfolio demo). It is not real spending. The private
 version loads the author's real Splitwise data from a local `data.json`
 that is git-ignored and is not committed here.
 
-![Finance Tracker dashboard prototype](demo.vi)
+![Finance Tracker dashboard prototype — sample data](preview.png)
 
 *Full dashboard in one long picture, rendered from the sample data in this repo — KPIs, pie, Monthly Trend, Top Expenses, Settle Up, Category vs Average, quotes, Time Intelligence, and Budget vs Actual. Not real spending. No API key or personal names are included in this repo.*
 

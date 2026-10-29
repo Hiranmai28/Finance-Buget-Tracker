@@ -526,9 +526,17 @@ with col_settle:
                      color_discrete_map={"#34D399": "#34D399", "#F87171": "#F87171"},
                      text="amount")
         fig.update_traces(texttemplate="$%{text:,.2f}", textposition="outside",
-                          textfont=dict(color="white", size=14))
+                          textfont=dict(color="white", size=14), cliponaxis=False)
         style_fig(fig, 340)
-        fig.update_layout(xaxis_title=None, yaxis_title=None, showlegend=False)
+        # Headroom on BOTH sides: this chart diverges from zero, so the
+        # longest Owe bar lost its label on the right and the longest
+        # Pay bar lost its "$-" on the left. Pad the axis past both
+        # extremes and widen both margins so every label fits.
+        _s_min = float(balances["amount"].min())
+        _s_max = float(balances["amount"].max())
+        fig.update_layout(xaxis_title=None, yaxis_title=None, showlegend=False,
+                          xaxis_range=[min(0.0, _s_min * 1.4), max(0.0, _s_max * 1.4)],
+                          margin=dict(l=90, r=90, t=30, b=10))
         fig.update_yaxes(tickfont=dict(size=14, color="white"))
         settle_state = st.plotly_chart(fig, width="stretch", key=_chart_key("settle_chart"), on_select="rerun")
         _click_person("settle_chart", settle_state, balances["name"].tolist())
@@ -670,7 +678,7 @@ if len(budget_df):
     fig.add_bar(y=budget_df["cat"], x=budget_df["Actual"], orientation="h", name="Actual",
                 marker_color=["#F87171" if v > 0 else "#FACC15" for v in budget_df["Variance"]],
                 text=[f"{fmt(a)} / {fmt(b)}" for a, b in zip(budget_df["Actual"], budget_df["Budget"])],
-                textposition="outside", textfont=dict(color="white", size=14))
+                textposition="outside", textfont=dict(color="white", size=14), cliponaxis=False)
     # Budget ticks: white vertical lines at the budget value
     for _, r in budget_df.iterrows():
         fig.add_shape(type="line", x0=r["Budget"], x1=r["Budget"],
@@ -678,7 +686,14 @@ if len(budget_df):
                       y1=budget_df.index[budget_df["cat"] == r["cat"]][0] + 0.4,
                       line=dict(color="white", width=3))
     style_fig(fig, 460)
-    fig.update_layout(showlegend=False, xaxis_title=None, yaxis_title=None, yaxis=dict(autorange="reversed"))
+    # Headroom for the "Actual / Budget" labels: the Rent (fixed) bar
+    # fills the whole axis, so its label was cut off at the right edge.
+    # Extend the axis past the largest Actual/Budget value, as with
+    # Top Expenses, so the longest label fits inside the chart.
+    _budget_max = float(max(budget_df["Actual"].max(), budget_df["Budget"].max()))
+    fig.update_layout(showlegend=False, xaxis_title=None, yaxis_title=None, yaxis=dict(autorange="reversed"),
+                      xaxis_range=[0, _budget_max * 1.45],
+                      margin=dict(l=10, r=30, t=30, b=10))
     fig.update_yaxes(tickfont=dict(size=15, color="white"))
     fig.update_xaxes(tickfont=dict(size=14, color="white"))
     budget_state = st.plotly_chart(fig, width="stretch", key=_chart_key("budget_chart"), on_select="rerun")
@@ -692,7 +707,10 @@ if len(budget_df):
     over_budget = [r for r in rows if r["Variance"] > 0]
     if over_budget:
         st.markdown("### 💬 Over budget")
-        st.caption("“Actual” is your share this month for that category, “Budget” is its share of the $400 left after the $600 fixed rent within the $1,000 monthly cap, allocated by its previous 6-month average, and the variance is Actual minus Budget, so a card here means you spent more than that budget.")
+        # One sentence, but the amounts follow the budget slicers instead
+        # of being hard-coded — with a $1,500 total they must read
+        # $900 / $600 / $1,500, not $400 / $600 / $1,000.
+        st.caption(f"“Actual” is your share this month for that category, “Budget” is its share of the {fmt(total_budget - rent_budget)} left after the {fmt(rent_budget)} fixed rent within the {fmt(total_budget)} monthly cap, allocated by its previous 6-month average, and the variance is Actual minus Budget, so a card here means you spent more than that budget.")
         cols = st.columns(min(3, len(over_budget)))
         for col, r in zip(cols, over_budget[:3]):
             emoji, quote = quote_for(r["cat"] if r["cat"] != "Rent (fixed)" else "Rent")
