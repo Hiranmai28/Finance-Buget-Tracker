@@ -36,24 +36,34 @@ MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
 
 # Fun emojis + quotes — shown ONLY where spending is over average / over budget.
 QUOTES = {
-    "Dining out": ("🍕", "I followed my heart, and it led me to the fridge."),
-    "Groceries": ("🛒", "I came for milk and left with a whole new personality."),
-    "Shopping": ("🛍️", "Shopping is my cardio — and my wallet felt the workout."),
-    "General": ("💸", "Money talks… mine just said goodbye."),
-    "Electronics": ("🎧", "New gadget, who dis? My budget, that's who."),
-    "Entertainment": ("🎬", "Popcorn: small. Movie: fun. Budget: crying."),
-    "Transportation": ("🚗", "My car drinks more than I do."),
-    "Taxi": ("🚕", "I took a cab because walking is for people with savings."),
-    "Services": ("✨", "Treat yourself — the budget will understand. (It won't.)"),
-    "Household supplies": ("🧹", "Clean house, empty wallet."),
-    "Electricity": ("💡", "Bright ideas, brighter bills."),
-    "TV/Phone/Internet": ("📱", "Wi-Fi is life. The bill is the plot twist."),
-    "Sports": ("🏋️", "Sweat now, spend now, shine later."),
-    "Gifts": ("🎁", "Giving is caring — and slightly over budget."),
-    "Car": ("🚙", "Vroom vroom, there goes the budget."),
-    "Rent": ("🏠", "Home is where the rent is."),
+    "Dining out": ("🍕", "My wallet is on a diet, but my appetite never got the memo — dinner cost an arm and a leg."),
+    "Groceries": ("🛒", "I went in for bread and came out with a trolley full — money really does burn a hole in my pocket here."),
+    "Shopping": ("🛍️", "Shop till you drop? More like shop till your bank account drops — I broke the bank again."),
+    "General": ("💸", "Money doesn't grow on trees, but mine certainly falls off them fast."),
+    "Electronics": ("🎧", "This gadget cost an arm and a leg — and I still need the other arm to hold it."),
+    "Entertainment": ("🎬", "All work and no play makes Jack a dull boy — and a broke one, apparently."),
+    "Movies": ("🎥", "The sequel nobody asked for: my budget, part two — now showing, over budget."),
+    "Transportation": ("🚗", "I'm running on empty — my tank and my wallet both hit rock bottom."),
+    "Transportation - Other": ("🚌", "All roads lead to Rome — and all fares lead to an empty wallet."),
+    "Taxi": ("🚕", "I flagged a cab and my savings waved goodbye."),
+    "Services": ("✨", "You get what you pay for — and apparently, I paid for everything."),
+    "Household supplies": ("🧹", "A clean home is a happy home, but a penny saved is a penny earned — and I saved neither."),
+    "Electricity": ("💡", "I left the lights on and my money went out like a light."),
+    "TV/Phone/Internet": ("📱", "I'm always connected, except to my savings — this bill really rang a bell."),
+    "Sports": ("🏋️", "No pain, no gain — except my wallet felt all the pain and none of the gain."),
+    "Gifts": ("🎁", "It's the thought that counts — and the receipt that hurts."),
+    "Car": ("🚙", "My car is a money pit with wheels — it eats cash for breakfast."),
+    "Rent": ("🏠", "Home sweet home — sweet until rent day, when it costs the earth."),
+    "Plane": ("✈️", "I flew too close to the sun — and to my credit limit."),
+    "Furniture": ("🪑", "I sat down to rest and stood up poorer — this chair cost a pretty penny."),
+    "Home - Other": ("🏡", "Home is where the heart is — and where the money disappears."),
+    "Parking": ("🅿️", "I paid to park and my budget stalled right there."),
+    "Water": ("💧", "Money down the drain, quite literally."),
+    "Gas/fuel": ("⛽", "Fuel prices are through the roof, and so is this category."),
+    "Clothing": ("👕", "Dressed to impress, stressed to pay — fashion cost me a fortune."),
+    "Cleaning": ("🧽", "Squeaky clean, wallet empty — I really cleaned out my account."),
 }
-DEFAULT_QUOTE = ("🌊", "Just keep swimming… past the average. The ocean is deep, and so is this category.")
+DEFAULT_QUOTE = ("🌊", "Just keep swimming — past the average, past the budget, and straight into deep water.")
 
 def quote_for(cat):
     return QUOTES.get(cat, DEFAULT_QUOTE)
@@ -510,7 +520,7 @@ if len(avg_df):
     over = [r for r in avg_rows if r["This period"] > r["6-mo avg"] and r["6-mo avg"] > 0]
     if over:
         st.markdown("### 💬 Over the average")
-        st.caption("These categories cost more in this period than their average over the previous 6 months. The emoji and quote are just a fun flag for that — the numbers are what matters.")
+        st.caption("“This period” is your share in the selected month for that category and “6-mo avg” is the average of your share in the same category over the previous 6 months, so a card here means you spent more this month than you usually do in that category.")
         cols = st.columns(min(3, len(over)))
         for col, r in zip(cols, over[:3]):
             emoji, quote = quote_for(r["cat"])
@@ -626,7 +636,7 @@ if len(budget_df):
     over_budget = [r for r in rows if r["Variance"] > 0]
     if over_budget:
         st.markdown("### 💬 Over budget")
-        st.caption("These categories spent more than the budget set for them this month. The emoji and quote are just a fun flag for that — the Actual vs Budget numbers above the quote are what matters.")
+        st.caption("“Actual” is your share this month for that category, “Budget” is its share of the $400 left after the $600 fixed rent within the $1,000 monthly cap, allocated by its previous 6-month average, and the variance is Actual minus Budget, so a card here means you spent more than that budget.")
         cols = st.columns(min(3, len(over_budget)))
         for col, r in zip(cols, over_budget[:3]):
             emoji, quote = quote_for(r["cat"] if r["cat"] != "Rent (fixed)" else "Rent")
