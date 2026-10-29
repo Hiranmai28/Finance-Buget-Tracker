@@ -9,6 +9,20 @@ generated for this portfolio demo). It is not real spending. The private
 version loads the author's real Splitwise data from a local `data.json`
 that is git-ignored and is not committed here.
 
+![Finance Tracker dashboard prototype — sample data](preview.png)
+
+*Full dashboard in one long picture, rendered from the sample data in this repo — KPIs, pie, Monthly Trend, Top Expenses, Settle Up, Category vs Average, quotes, Time Intelligence, and Budget vs Actual. Not real spending. No API key or personal names are included in this repo.*
+
+🎬 [Watch the demo video](demo.webm) — 29 seconds, scrolling through the deployed dashboard on sample data.
+
+## Resume bullets
+
+Short bullets describing the full build on the author's real data
+(1,394 transactions). The demo in this repo runs the same code on
+1,108 synthetic expenses.
+
+- Built a Power BI-style Finance Tracker dashboard in Python (Streamlit, Plotly, pandas) on a star-schema model, analysing budget vs. actuals against a $1,000/month cap, spending trends, and variances across 28 categories with DAX-style time-intelligence measures.
+- Automated data preparation from the Splitwise API and personal expenses, deduplicating payments and Splitwise-paid amounts for repeatable monthly budget and variance analysis across 1,394 transactions.
 
 ## Run it
 
